@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # web:
+  #   build: .
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - mongo
+  #     - documentserver
+  #   environment:
+  #     - PORT=3000
+  #     - NODE_ENV=production
+  #     - MONGODB_URI=mongodb://mongo:27017/onlyoffice
+  #     - DOCUMENT_SERVER_URL=http://documentserver
+  #     - JWT_SECRET=your_jwt_secret_key_here
+  #   volumes:
+  #     - ./uploads:/app/uploads
+  #   restart: unless-stopped
+  #   networks:
+  #     - onlyoffice-network
+
+  mongo:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+    networks:
+      - onlyoffice-network
+
+  documentserver:
+    image: onlyoffice/documentserver:7.3
+    ports:
+      - "8000:80"
+    volumes:
+        - ./uploads:/var/www/onlyoffice/Data
+      # - document-data:/var/www/onlyoffice/Data
+      # - document-logs:/var/log/onlyoffice
+    environment:
+      - JWT_ENABLED=false
+      # - JWT_SECRET=your_jwt_secret_key_here
+    restart: unless-stopped
+    networks:
+      - onlyoffice-network
+
+networks:
+  onlyoffice-network:
+    driver: bridge
+
+volumes:
+  mongo-data:
+  document-data:
+  document-logs:

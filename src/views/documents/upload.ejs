@@ -1,0 +1,141 @@
+<%- include('../layout', { title: 'Upload Document', user: user }) %>
+
+<div class="container mx-auto px-4 py-8">
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Upload Document</h1>
+      <p class="mt-1 text-sm text-gray-500">Upload a new document to your library</p>
+    </div>
+    <a href="/documents" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+      <svg xmlns="http://www.w3.org/2000/svg" class="-ml-1 mr-2 h-5 w-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="19" y1="12" x2="5" y2="12"></line>
+        <polyline points="12 19 5 12 12 5"></polyline>
+      </svg>
+      Back to documents
+    </a>
+  </div>
+
+  <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+    <div class="px-4 py-5 sm:p-6">
+      <form action="/documents/upload" method="POST" enctype="multipart/form-data" class="space-y-6">
+        <div>
+          <label for="title" class="block text-sm font-medium text-gray-700">
+            Document Title
+          </label>
+          <div class="mt-1">
+            <input type="text" name="title" id="title" class="shadow-sm focus:ring-primary-500 focus:border-primary-500 block w-full sm:text-sm border-gray-300 rounded-md" placeholder="My Document">
+            <p class="mt-1 text-xs text-gray-500">Leave blank to use the filename</p>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700">
+            Document File
+          </label>
+          <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+            <div class="space-y-1 text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <div class="flex text-sm text-gray-600">
+                <label for="document" class="relative cursor-pointer bg-white rounded-md font-medium text-primary-600 hover:text-primary-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary-500">
+                  <span>Upload a file</span>
+                  <input id="document" name="document" type="file" class="sr-only" required accept=".docx,.xlsx,.pptx,.txt,.pdf">
+                </label>
+                <p class="pl-1">or drag and drop</p>
+              </div>
+              <p class="text-xs text-gray-500">
+                Word, Excel, PowerPoint, TXT or PDF up to 50MB
+              </p>
+              <div id="file-name" class="text-sm text-gray-500 mt-2 hidden">
+                Selected file: <span class="font-medium text-gray-900"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end">
+          <a href="/documents" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 mr-3">
+            Cancel
+          </a>
+          <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+            Upload
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Display selected filename
+  const fileInput = document.getElementById('document');
+  const fileNameDisplay = document.getElementById('file-name');
+  const fileNameSpan = fileNameDisplay.querySelector('span');
+  
+  fileInput.addEventListener('change', function() {
+    if (fileInput.files.length > 0) {
+      fileNameSpan.textContent = fileInput.files[0].name;
+      fileNameDisplay.classList.remove('hidden');
+      
+      // Auto-fill title field with filename (without extension) if it's empty
+      const titleInput = document.getElementById('title');
+      if (!titleInput.value) {
+        const fileName = fileInput.files[0].name;
+        const fileNameWithoutExt = fileName.split('.').slice(0, -1).join('.');
+        titleInput.value = fileNameWithoutExt;
+      }
+    } else {
+      fileNameDisplay.classList.add('hidden');
+    }
+  });
+  
+  // Drag and drop functionality
+  const dropZone = document.querySelector('.border-dashed');
+  
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, preventDefaults, false);
+  });
+  
+  function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, highlight, false);
+  });
+  
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, unhighlight, false);
+  });
+  
+  function highlight() {
+    dropZone.classList.add('border-primary-300', 'bg-primary-50');
+    dropZone.classList.remove('border-gray-300');
+  }
+  
+  function unhighlight() {
+    dropZone.classList.remove('border-primary-300', 'bg-primary-50');
+    dropZone.classList.add('border-gray-300');
+  }
+  
+  dropZone.addEventListener('drop', handleDrop, false);
+  
+  function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    
+    if (files.length > 0) {
+      fileInput.files = files;
+      
+      // Trigger change event
+      const event = new Event('change', { bubbles: true });
+      fileInput.dispatchEvent(event);
+    }
+  }
+</script>
+
+<%- include('footer') %>
