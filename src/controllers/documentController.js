@@ -5,7 +5,11 @@ import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import Document from '../models/documentModel.js';
 import jwt from 'jsonwebtoken';
-
+import Docxtemplater from 'docxtemplater';
+import PptxGenJS from 'pptxgenjs';
+import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
+import PizZip from 'pizzip';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
 
@@ -58,7 +62,6 @@ const uploadDocument = asyncHandler(async (req, res) => {
   // Extract file extension and verify it's a supported type
   const fileExt = path.extname(file.originalname).toLowerCase().slice(1);
   const supportedTypes = ['docx', 'xlsx', 'pptx', 'txt', 'pdf'];
-  
   if (!supportedTypes.includes(fileExt)) {
     // Remove the file if it's not a supported type
     fs.unlinkSync(file.path);
@@ -68,7 +71,7 @@ const uploadDocument = asyncHandler(async (req, res) => {
 
   // Generate a unique key for the document
   const key = uuidv4();
-  
+  console.log('file path:', file.path);
   // Create a new document record
   const document = await Document.create({
     title: req.body.title || path.basename(file.originalname, path.extname(file.originalname)),
@@ -88,19 +91,17 @@ const uploadDocument = asyncHandler(async (req, res) => {
 // @access  Private (with access control)
 const viewDocument = asyncHandler(async (req, res) => {
   const document = await Document.findById(req.params.id).populate('owner', 'name email');
-  
+  console.log('Document:', document);
   // Check if document exists
   if (!document) {
     res.status(404);
     throw new Error('Document not found');
   }
-
   // Check if user has access to the document
   const hasAccess = 
     document.owner._id.equals(req.session.user._id) || 
     document.isPublic || 
     document.shared.some(share => share.user.equals(req.session.user._id));
-
   if (!hasAccess) {
     res.status(403);
     throw new Error('You do not have permission to view this document');
@@ -159,9 +160,10 @@ const deleteDocument = asyncHandler(async (req, res) => {
 // @desc    Create a new document
 // @route   GET /documents/create/:type
 // @access  Private
+
 const createDocument = asyncHandler(async (req, res) => {
   const { type } = req.params;
-  
+
   // Validate document type
   const validTypes = ['docx', 'xlsx', 'pptx'];
   if (!validTypes.includes(type)) {
@@ -175,18 +177,39 @@ const createDocument = asyncHandler(async (req, res) => {
     'xlsx': 'Spreadsheet',
     'pptx': 'Presentation',
   };
-  
+
   const title = `New ${typeMap[type]}`;
   const filename = `${title}.${type}`;
-  
-  // Create an empty template file
   const key = uuidv4();
   const filePath = path.join(UPLOAD_DIR, `${key}.${type}`);
+
+  // Create the file based on type
+  if (type === 'docx') {
+    // Create a Word document using Docxtemplater and PizZip
+    const templatePath = path.join(__dirname, '../templates/template.docx'); // Use a template file
+    const templateContent = fs.readFileSync(templatePath, 'binary');
+    const zip = new PizZip(templateContent);
+    const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
   
-  // Create an empty file of the specified type
-  // This is a simplified approach. In a real implementation, you would use
-  // template files or a library to create proper Office files
-  fs.writeFileSync(filePath, '');
+    // Render the document with dynamic data
+    doc.render({ title });
+  
+    // Generate the document buffer
+    const buffer = doc.getZip().generate({ type: 'nodebuffer' });
+    fs.writeFileSync(filePath, buffer);
+  } else if (type === 'xlsx') {
+    // Create an Excel file using ExcelJS
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Sheet1');
+    sheet.addRow(['Title', title]);
+    await workbook.xlsx.writeFile(filePath);
+  } else if (type === 'pptx') {
+    // Create a PowerPoint file using PptxGenJS
+    const pptx = new PptxGenJS();
+    const slide = pptx.addSlide();
+    slide.addText(title, { x: 1, y: 1, fontSize: 24 });
+    await pptx.writeFile(filePath);
+  }
 
   // Create a document record
   const document = await Document.create({
@@ -195,7 +218,7 @@ const createDocument = asyncHandler(async (req, res) => {
     fileType: type,
     path: filePath,
     key,
-    size: 0, // Empty file
+    size: fs.statSync(filePath).size,
     owner: req.session.user._id,
   });
 

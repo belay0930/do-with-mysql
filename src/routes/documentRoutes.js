@@ -19,6 +19,8 @@ const router = express.Router();
 
 // Configure multer storage
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+console.log('Current directory:', __dirname);
+console.log('Uploads directory:', path.join(__dirname, '../../uploads'));
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, path.join(__dirname, '../../uploads'));

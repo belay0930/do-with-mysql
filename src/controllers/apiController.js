@@ -11,7 +11,6 @@ const handleCallback = asyncHandler(async (req, res) => {
   const { key, status, url } = body;
 
   console.log('Received callback from OnlyOffice Document Server:', body);
-
   // Find the document by key
   const document = await Document.findOne({ key });
   
@@ -48,11 +47,10 @@ const handleCallback = asyncHandler(async (req, res) => {
     case 3: // Document ready for saving
       console.log(`Document ${document.title} is ready for saving.`);
       break;
-      
     case 4: // Document saving error
       console.error(`Error saving document ${document.title}.`);
       break;
-      
+
     default:
       console.log(`Unknown status (${status}) for document ${document.title}.`);
   }
