@@ -12,6 +12,7 @@ import JSZip from 'jszip';
 import PizZip from 'pizzip';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
+import User from '../models/userModel.js';
 
 // Ensure upload directory exists
 if (!fs.existsSync(UPLOAD_DIR)) {
