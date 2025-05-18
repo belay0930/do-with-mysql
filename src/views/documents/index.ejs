@@ -15,44 +15,63 @@
         </svg>
         Upload
       </a>
-      <div class="relative inline-block text-left">
-        <button id="createMenuButton" type="button" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
-          <svg xmlns="http://www.w3.org/2000/svg" class="-ml-1 mr-2 h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
-          Create new
-        </button>
-        <div id="createMenu" class="hidden origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10" role="menu" aria-orientation="vertical" aria-labelledby="create-menu-button">
-          <div class="py-1" role="none">
-            <a href="/documents/create/docx" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
-              <svg xmlns="http://www.w3.org/2000/svg" class="mr-3 h-5 w-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-                <polyline points="10 9 9 9 8 9"></polyline>
-              </svg>
-              Word Document
-            </a>
-            <a href="/documents/create/xlsx" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
-              <svg xmlns="http://www.w3.org/2000/svg" class="mr-3 h-5 w-5 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="3" y1="9" x2="21" y2="9"></line>
-                <line x1="3" y1="15" x2="21" y2="15"></line>
-                <line x1="9" y1="3" x2="9" y2="21"></line>
-                <line x1="15" y1="3" x2="15" y2="21"></line>
-              </svg>
-              Excel Spreadsheet
-            </a>
-            <a href="/documents/create/pptx" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
-              <svg xmlns="http://www.w3.org/2000/svg" class="mr-3 h-5 w-5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-                <polyline points="13 2 13 9 20 9"></polyline>
-              </svg>
-              PowerPoint Presentation
-            </a>
+      <button id="createMenuButton" type="button" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+        <svg xmlns="http://www.w3.org/2000/svg" class="-ml-1 mr-2 h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        Create new
+      </button>
+    </div>
+  </div>
+
+  <!-- Create Document Modal -->
+  <div id="createDocumentModal" class="fixed inset-0 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+      <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+      <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div class="sm:flex sm:items-start">
+            <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
+              <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                Create New Document
+              </h3>
+              <div class="mt-4">
+                <form id="createDocumentForm" class="space-y-4">
+                  <div>
+                    <label for="documentName" class="block text-sm font-medium text-gray-700">
+                      Document Name
+                    </label>
+                    <input type="text" name="documentName" id="documentName" required
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                      placeholder="Enter document name">
+                  </div>
+                  <div>
+                    <label for="documentType" class="block text-sm font-medium text-gray-700">
+                      Document Type
+                    </label>
+                    <select id="documentType" name="documentType" required
+                      class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm">
+                      <option value="docx">Word Document</option>
+                      <option value="xlsx">Excel Spreadsheet</option>
+                      <option value="pptx">PowerPoint Presentation</option>
+                    </select>
+                  </div>
+                </form>
+              </div>
+            </div>
           </div>
+        </div>
+        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          <button type="button" id="createDocumentButton"
+            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm">
+            Create
+          </button>
+          <button type="button" id="cancelCreateButton"
+            class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+            Cancel
+          </button>
         </div>
       </div>
     </div>
@@ -199,22 +218,41 @@
 </div>
 
 <script>
-  // Create menu toggle
+  // Create document modal functionality
   const createMenuButton = document.getElementById('createMenuButton');
-  const createMenu = document.getElementById('createMenu');
-  
-  if (createMenuButton && createMenu) {
-    createMenuButton.addEventListener('click', function() {
-      createMenu.classList.toggle('hidden');
-    });
+  const createDocumentModal = document.getElementById('createDocumentModal');
+  const cancelCreateButton = document.getElementById('cancelCreateButton');
+  const createDocumentButton = document.getElementById('createDocumentButton');
+  const createDocumentForm = document.getElementById('createDocumentForm');
+
+  createMenuButton.addEventListener('click', () => {
+    createDocumentModal.classList.remove('hidden');
+  });
+
+  cancelCreateButton.addEventListener('click', () => {
+    createDocumentModal.classList.add('hidden');
+    createDocumentForm.reset();
+  });
+
+  createDocumentButton.addEventListener('click', () => {
+    const documentName = document.getElementById('documentName').value.trim();
+    const documentType = document.getElementById('documentType').value;
     
-    // Close the menu when clicking outside
-    document.addEventListener('click', function(event) {
-      if (!createMenuButton.contains(event.target) && !createMenu.contains(event.target)) {
-        createMenu.classList.add('hidden');
-      }
-    });
-  }
+    if (!documentName) {
+      alert('Please enter a document name');
+      return;
+    }
+    
+    window.location.href = `/documents/create/${documentType}?name=${encodeURIComponent(documentName)}`;
+  });
+
+  // Close modal when clicking outside
+  createDocumentModal.addEventListener('click', (e) => {
+    if (e.target === createDocumentModal) {
+      createDocumentModal.classList.add('hidden');
+      createDocumentForm.reset();
+    }
+  });
 
   // Empty state create menu toggle
   const emptyCreateMenuButton = document.getElementById('emptyCreateMenuButton');

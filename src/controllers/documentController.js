@@ -161,9 +161,9 @@ const deleteDocument = asyncHandler(async (req, res) => {
 // @desc    Create a new document
 // @route   GET /documents/create/:type
 // @access  Private
-
 const createDocument = asyncHandler(async (req, res) => {
   const { type } = req.params;
+  const { name } = req.query;
 
   // Validate document type
   const validTypes = ['docx', 'xlsx', 'pptx'];
@@ -172,40 +172,32 @@ const createDocument = asyncHandler(async (req, res) => {
     throw new Error('Invalid document type. Supported types are docx, xlsx, and pptx.');
   }
 
-  // Generate a filename based on type
-  const typeMap = {
-    'docx': 'Document',
-    'xlsx': 'Spreadsheet',
-    'pptx': 'Presentation',
-  };
+  // Validate document name
+  if (!name) {
+    res.status(400);
+    throw new Error('Document name is required');
+  }
 
-  const title = `New ${typeMap[type]}`;
+  const title = name;
   const filename = `${title}.${type}`;
   const key = uuidv4();
   const filePath = path.join(UPLOAD_DIR, `${key}.${type}`);
 
   // Create the file based on type
   if (type === 'docx') {
-    // Create a Word document using Docxtemplater and PizZip
-    const templatePath = path.join(__dirname, '../templates/template.docx'); // Use a template file
+    const templatePath = path.join(__dirname, '../templates/template.docx');
     const templateContent = fs.readFileSync(templatePath, 'binary');
     const zip = new PizZip(templateContent);
     const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
-  
-    // Render the document with dynamic data
     doc.render({ title });
-  
-    // Generate the document buffer
     const buffer = doc.getZip().generate({ type: 'nodebuffer' });
     fs.writeFileSync(filePath, buffer);
   } else if (type === 'xlsx') {
-    // Create an Excel file using ExcelJS
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Sheet1');
     sheet.addRow(['Title', title]);
     await workbook.xlsx.writeFile(filePath);
   } else if (type === 'pptx') {
-    // Create a PowerPoint file using PptxGenJS
     const pptx = new PptxGenJS();
     const slide = pptx.addSlide();
     slide.addText(title, { x: 1, y: 1, fontSize: 24 });
