@@ -51,7 +51,7 @@
           <%= document.title %>
         </h3>
         <p class="mt-1 max-w-2xl text-sm text-gray-500">
-          <%= document.filename %>
+          <%= document.filename %> • Version <%= document.version %>
         </p>
       </div>
       <div class="text-sm text-gray-500">
@@ -73,6 +73,20 @@
         <% } %>
       </div>
     </div>
+
+    <% if (document.shared && document.shared.length > 0) { %>
+      <div class="px-4 py-3 bg-gray-50 border-t border-b border-gray-200">
+        <h4 class="text-sm font-medium text-gray-700">Shared with:</h4>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <% document.shared.forEach(share => { %>
+            <div class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+              <%= share.user.name %>
+              <span class="ml-1 text-primary-600">(<%= share.access %>)</span>
+            </div>
+          <% }); %>
+        </div>
+      </div>
+    <% } %>
 
     <div class="border-t border-gray-200" style="height: calc(100vh - 2rem);">
       <div id="documentEditor"></div>
@@ -188,7 +202,8 @@
       .then(response => response.json())
       .then(config => {
         // Initialize OnlyOffice Document Editor
-        console.log('Editor Config:', config);
+        console.log('Editor Config:', config); // Debugging
+
         const docEditor = new DocsAPI.DocEditor("documentEditor", config);
       })
       .catch(error => {
