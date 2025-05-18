@@ -41,30 +41,17 @@ const handleCallback = asyncHandler(async (req, res) => {
           const arrayBuffer = await response.arrayBuffer();
           const buffer = Buffer.from(arrayBuffer);
 
-          // Create a backup of the current version
-          const backupPath = `${document.path}.${document.version}`;
-          if (fs.existsSync(document.path)) {
-            fs.copyFileSync(document.path, backupPath);
-          }
-
           // Save the new version
           fs.writeFileSync(document.path, buffer);
 
           // Update document metadata
           await Document.findByIdAndUpdate(document._id, {
-            version: document.version + 1,
             lastModified: new Date(),
           });
 
-          console.log(`Document saved successfully. New version: ${document.version + 1}`);
+          console.log(`Document saved successfully.`);
         } catch (error) {
           console.error('Error saving document:', error);
-
-          // Restore from backup if save failed
-          const backupPath = `${document.path}.${document.version}`;
-          if (fs.existsSync(backupPath)) {
-            fs.copyFileSync(backupPath, document.path);
-          }
           return res.status(500).json({ error: 'Failed to save document' });
         }
       }
@@ -192,7 +179,6 @@ const getEditorConfig = asyncHandler(async (req, res) => {
         comments: true,
         zoom: 100,
         showReviewChanges: true,
-        trackChanges: true,
       },
     },
     token,

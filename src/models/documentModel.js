@@ -49,10 +49,6 @@ const documentSchema = mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    version: {
-      type: Number,
-      default: 1,
-    },
     lastModified: {
       type: Date,
       default: Date.now,
