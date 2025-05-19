@@ -1,12 +1,11 @@
 import asyncHandler from 'express-async-handler';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';
-import path from 'path';
 import Document from '../models/documentModel.js';
 
 // @desc    OnlyOffice callback handler
 // @route   POST /api/callback
-// @access  Public (with JWT verification)
+// @access  Public
 const handleCallback = asyncHandler(async (req, res) => {
   const { body } = req;
   const { key, status, url } = body;
@@ -28,7 +27,6 @@ const handleCallback = asyncHandler(async (req, res) => {
 
     case 2: // Document saving
       console.log(`Document ${document.title} is being saved.`);
-      console.log(`Saving document from URL: ${url}`);
       if (url) {
         try {
           // Fetch the document from the provided URL
@@ -43,13 +41,7 @@ const handleCallback = asyncHandler(async (req, res) => {
 
           // Save the new version
           fs.writeFileSync(document.path, buffer);
-
-          // Update document metadata
-          await Document.findByIdAndUpdate(document._id, {
-            lastModified: new Date(),
-          });
-
-          console.log(`Document saved successfully.`);
+          console.log('Document saved successfully');
         } catch (error) {
           console.error('Error saving document:', error);
           return res.status(500).json({ error: 'Failed to save document' });
@@ -73,7 +65,7 @@ const handleCallback = asyncHandler(async (req, res) => {
   res.json({ error: 0 });
 });
 
-// @desc    Generate JWT for OnlyOffice integration
+// @desc    Generate config for OnlyOffice editor
 // @route   GET /api/config/:id
 // @access  Private
 const getEditorConfig = asyncHandler(async (req, res) => {
@@ -82,27 +74,6 @@ const getEditorConfig = asyncHandler(async (req, res) => {
   
   if (!document) {
     return res.status(404).json({ error: 'Document not found' });
-  }
-
-  // Check if user has access to the document
-  const hasAccess = 
-    document.owner._id.equals(req.session.user._id) || 
-    document.isPublic || 
-    document.shared.some(share => share.user.equals(req.session.user._id));
-
-  if (!hasAccess) {
-    return res.status(403).json({ error: 'Access denied' });
-  }
-
-  // Determine if user has edit rights
-  let mode = 'view';
-  if (document.owner._id.equals(req.session.user._id)) {
-    mode = 'edit';
-  } else {
-    const sharedAccess = document.shared.find(share => share.user.equals(req.session.user._id));
-    if (sharedAccess && sharedAccess.access === 'edit') {
-      mode = 'edit';
-    }
   }
 
   // Get file extension without the leading dot
@@ -135,9 +106,6 @@ const getEditorConfig = asyncHandler(async (req, res) => {
       document: {
         key: document.key,
       },
-      permissions: {
-        edit: mode === 'edit',
-      },
       user: {
         id: req.session.user._id.toString(),
         name: req.session.user.name,
@@ -154,8 +122,12 @@ const getEditorConfig = asyncHandler(async (req, res) => {
       key: document.key,
       title: document.title,
       url: `${process.env.APP_URL || 'http://localhost:3000'}/api/documents/${document.key}/download`,
+      info: {
+        owner: document.owner.name,
+        uploaded: document.createdAt
+      },
       permissions: {
-        edit: mode === 'edit',
+        edit: true,
         download: true,
         review: true,
         comment: true,
@@ -166,7 +138,7 @@ const getEditorConfig = asyncHandler(async (req, res) => {
     },
     documentType,
     editorConfig: {
-      mode,
+      mode: 'edit',
       callbackUrl: `${process.env.APP_URL || 'http://localhost:3000'}/api/callback`,
       user: {
         id: req.session.user._id.toString(),
@@ -174,11 +146,8 @@ const getEditorConfig = asyncHandler(async (req, res) => {
       },
       customization: {
         autosave: true,
-        forcesave: true,
-        chat: true,
         comments: true,
         zoom: 100,
-        showReviewChanges: true,
       },
     },
     token,
@@ -189,7 +158,7 @@ const getEditorConfig = asyncHandler(async (req, res) => {
 
 // @desc    Download document file
 // @route   GET /api/documents/:key/download
-// @access  Public (with token)
+// @access  Public
 const downloadDocument = asyncHandler(async (req, res) => {
   const { key } = req.params;
   

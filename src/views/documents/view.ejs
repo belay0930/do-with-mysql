@@ -33,7 +33,7 @@
           </button>
         </form>
       <% } %>
-      <a href="/downloads/<%= document._id %>" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+      <a href="/documents/downloads/<%= document._id %>" class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
           <polyline points="7 10 12 15 17 10"></polyline>
@@ -51,7 +51,7 @@
           <%= document.title %>
         </h3>
         <p class="mt-1 max-w-2xl text-sm text-gray-500">
-          <%= document.filename %> • Version <%= document.version %>
+          <%= document.filename %> 
         </p>
       </div>
       <div class="text-sm text-gray-500">

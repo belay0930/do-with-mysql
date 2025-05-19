@@ -4,15 +4,13 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import Document from '../models/documentModel.js';
-import jwt from 'jsonwebtoken';
 import Docxtemplater from 'docxtemplater';
 import PptxGenJS from 'pptxgenjs';
 import ExcelJS from 'exceljs';
-import JSZip from 'jszip';
 import PizZip from 'pizzip';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
-import User from '../models/userModel.js';
 
 // Ensure upload directory exists
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -23,13 +21,7 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 // @route   GET /documents
 // @access  Private
 const getDocuments = asyncHandler(async (req, res) => {
-  const documents = await Document.find({
-    $or: [
-      { owner: req.session.user._id },
-      { 'shared.user': req.session.user._id },
-      { isPublic: true },
-    ],
-  }).sort({ updatedAt: -1 });
+  const documents = await Document.find({ owner: req.session.user._id }).sort({ updatedAt: -1 });
 
   res.render('documents/index', {
     title: 'My Documents',
@@ -63,8 +55,8 @@ const uploadDocument = asyncHandler(async (req, res) => {
   // Extract file extension and verify it's a supported type
   const fileExt = path.extname(file.originalname).toLowerCase().slice(1);
   const supportedTypes = ['docx', 'xlsx', 'pptx', 'txt', 'pdf'];
+  
   if (!supportedTypes.includes(fileExt)) {
-    // Remove the file if it's not a supported type
     fs.unlinkSync(file.path);
     res.status(400);
     throw new Error('Unsupported file type. Please upload docx, xlsx, pptx, txt, or pdf files only.');
@@ -72,7 +64,7 @@ const uploadDocument = asyncHandler(async (req, res) => {
 
   // Generate a unique key for the document
   const key = uuidv4();
-  console.log('file path:', file.path);
+
   // Create a new document record
   const document = await Document.create({
     title: req.body.title || path.basename(file.originalname, path.extname(file.originalname)),
@@ -89,62 +81,43 @@ const uploadDocument = asyncHandler(async (req, res) => {
 
 // @desc    View a document
 // @route   GET /documents/:id
-// @access  Private (with access control)
+// @access  Private
 const viewDocument = asyncHandler(async (req, res) => {
   const document = await Document.findById(req.params.id).populate('owner', 'name email');
-  console.log('Document:', document);
-  // Check if document exists
+  
   if (!document) {
     res.status(404);
     throw new Error('Document not found');
   }
-  // Check if user has access to the document
-  const hasAccess = 
-    document.owner._id.equals(req.session.user._id) || 
-    document.isPublic || 
-    document.shared.some(share => share.user.equals(req.session.user._id));
-  if (!hasAccess) {
-    res.status(403);
-    throw new Error('You do not have permission to view this document');
-  }
 
-  // Get the user's access level (view or edit)
-  let accessMode = 'view';
-  if (document.owner._id.equals(req.session.user._id)) {
-    accessMode = 'edit';
-  } else {
-    const sharedAccess = document.shared.find(share => share.user.equals(req.session.user._id));
-    if (sharedAccess && sharedAccess.access === 'edit') {
-      accessMode = 'edit';
-    }
+  // Check if user owns the document
+  if (!document.owner._id.equals(req.session.user._id)) {
+    res.status(403);
+    throw new Error('Access denied');
   }
 
   res.render('documents/view', {
     title: document.title,
     document,
     user: req.session.user,
-    accessMode,
     documentServerUrl: process.env.DOCUMENT_SERVER_URL || 'http://localhost:8000',
-    
   });
 });
 
 // @desc    Delete a document
 // @route   DELETE /documents/:id
-// @access  Private (owner only)
+// @access  Private
 const deleteDocument = asyncHandler(async (req, res) => {
   const document = await Document.findById(req.params.id);
   
-  // Check if document exists
   if (!document) {
     res.status(404);
     throw new Error('Document not found');
   }
 
-  // Check if user is the owner
   if (!document.owner.equals(req.session.user._id)) {
     res.status(403);
-    throw new Error('You do not have permission to delete this document');
+    throw new Error('Access denied');
   }
 
   // Delete the file
@@ -163,22 +136,20 @@ const deleteDocument = asyncHandler(async (req, res) => {
 // @access  Private
 const createDocument = asyncHandler(async (req, res) => {
   const { type } = req.params;
-  const { name } = req.query;
+  const { title } = req.query;
+  
+  if (!title) {
+    res.status(400);
+    throw new Error('Document title is required');
+  }
 
-  // Validate document type
   const validTypes = ['docx', 'xlsx', 'pptx'];
+  
   if (!validTypes.includes(type)) {
     res.status(400);
     throw new Error('Invalid document type. Supported types are docx, xlsx, and pptx.');
   }
 
-  // Validate document name
-  if (!name) {
-    res.status(400);
-    throw new Error('Document name is required');
-  }
-
-  const title = name;
   const filename = `${title}.${type}`;
   const key = uuidv4();
   const filePath = path.join(UPLOAD_DIR, `${key}.${type}`);
@@ -204,7 +175,6 @@ const createDocument = asyncHandler(async (req, res) => {
     await pptx.writeFile(filePath);
   }
 
-  // Create a document record
   const document = await Document.create({
     title,
     filename,
@@ -215,54 +185,38 @@ const createDocument = asyncHandler(async (req, res) => {
     owner: req.session.user._id,
   });
 
-  // Redirect to the document editor
   res.redirect(`/documents/${document._id}`);
 });
 
-// @desc    Share a document with other users
-// @route   POST /documents/:id/share
-// @access  Private (owner only)
-const shareDocument = asyncHandler(async (req, res) => {
-  const { email, access } = req.body;
+// @desc    Download a document
+// @route   GET /documents/downloads/:id
+// @access  Private
+const downloadDocument = asyncHandler(async (req, res) => {
   const document = await Document.findById(req.params.id);
-  
-  // Check if document exists
+
   if (!document) {
     res.status(404);
     throw new Error('Document not found');
   }
 
-  // Check if user is the owner
   if (!document.owner.equals(req.session.user._id)) {
     res.status(403);
-    throw new Error('You do not have permission to share this document');
+    throw new Error('Access denied');
   }
 
-  // Find the user to share with
-  const userToShare = await User.findOne({ email });
-  if (!userToShare) {
+  const filePath = document.path;
+
+  if (!fs.existsSync(filePath)) {
     res.status(404);
-    throw new Error('User not found');
+    throw new Error('File not found on server');
   }
 
-  // Check if the document is already shared with this user
-  const alreadyShared = document.shared.some(share => share.user.equals(userToShare._id));
-  
-  if (alreadyShared) {
-    // Update the access level
-    await Document.updateOne(
-      { _id: document._id, 'shared.user': userToShare._id },
-      { $set: { 'shared.$.access': access } }
-    );
-  } else {
-    // Add the user to the shared list
-    await Document.updateOne(
-      { _id: document._id },
-      { $push: { shared: { user: userToShare._id, access } } }
-    );
-  }
-
-  res.redirect(`/documents/${document._id}`);
+  res.download(filePath, document.filename, (err) => {
+    if (err) {
+      console.error('Error during file download:', err);
+      res.status(500).send('Error downloading the file');
+    }
+  });
 });
 
 export { 
@@ -272,5 +226,5 @@ export {
   viewDocument, 
   deleteDocument, 
   createDocument, 
-  shareDocument 
+  downloadDocument 
 };

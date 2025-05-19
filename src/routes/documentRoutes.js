@@ -10,7 +10,7 @@ import {
   viewDocument,
   deleteDocument,
   createDocument,
-  shareDocument,
+  downloadDocument,
 } from '../controllers/documentController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -47,6 +47,6 @@ router.post('/upload', upload.single('document'), uploadDocument);
 router.get('/create/:type', createDocument);
 router.get('/:id', viewDocument);
 router.delete('/:id', deleteDocument);
-router.post('/:id/share', shareDocument);
+router.get('/downloads/:id', downloadDocument);
 
 export default router;

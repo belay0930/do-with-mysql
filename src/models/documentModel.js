@@ -33,26 +33,7 @@ const documentSchema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-    },
-    shared: [{
-      user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-      },
-      access: {
-        type: String,
-        enum: ['view', 'edit'],
-        default: 'view',
-      },
-    }],
-    isPublic: {
-      type: Boolean,
-      default: false,
-    },
-    lastModified: {
-      type: Date,
-      default: Date.now,
-    },
+    }
   },
   {
     timestamps: true,
