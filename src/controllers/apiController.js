@@ -17,76 +17,119 @@ const handleCallback = asyncHandler(async (req, res) => {
   const document = await Document.findOne({ key });
 
   if (!document) {
-    return res.status(404).json({ error: 'Document not found' });
+    return res.status(404).json({ error: 1, message: 'Document not found' });
   }
 
   // Handle different status updates from the document server
   switch (status) {
     case 1: // Document being edited
-      console.log(`Document ${document.title} is being edited.`);
-      // Track active users
-      if (users && users.length > 0) {
-        console.log(`Active users: ${users.map(u => u.name).join(', ')}`);
+      try {
+        await Document.findOneAndUpdate(
+          { key },
+          { 
+            status: 'editing',
+            activeUsers: users || [],
+            lastModified: new Date()
+          }
+        );
+        console.log(`Document ${document.title} is being edited.`);
+        if (users && users.length > 0) {
+          console.log('Active users:', users.join(', '));
+        }
+      } catch (error) {
+        console.error('Error updating document status:', error);
       }
       break;
 
     case 2: // Document saving
-      console.log(`Document ${document.title} is being saved.`);
-      if (url) {
-        try {
-          // Create a temporary file path for the new version
-          const tempPath = `${document.path}.temp`;
-          
-          // Fetch and save the new version to temporary file
-          const response = await fetch(url);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch document: ${response.statusText}`);
-          }
-
-          const arrayBuffer = await response.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-          fs.writeFileSync(tempPath, buffer);
-
-          // Create a backup of the current version
-          const backupPath = `${document.path}.${document.version}`;
-          if (fs.existsSync(document.path)) {
-            fs.copyFileSync(document.path, backupPath);
-          }
-
-          // Replace the current file with the new version
-          fs.renameSync(tempPath, document.path);
-
-          // Update document metadata
-          const newVersion = document.version + 1;
-          await Document.findByIdAndUpdate(document._id, {
-            version: newVersion,
-            lastModified: new Date(),
-          });
-
-          console.log(`Document saved successfully. New version: ${newVersion}`);
-          
-          // Return forced save result
-          return res.json({
-            error: 0,
-            status: 'success',
-            version: newVersion,
-          });
-        } catch (error) {
-          console.error('Error saving document:', error);
-
-          // Restore from backup if save failed
-          const backupPath = `${document.path}.${document.version}`;
-          if (fs.existsSync(backupPath)) {
-            fs.copyFileSync(backupPath, document.path);
-          }
-
-          return res.status(500).json({
-            error: 1,
-            message: 'Failed to save document',
-          });
-        }
+      if (!url) {
+        return res.status(400).json({ error: 1, message: 'No URL provided for saving' });
       }
-      break;
+
+      try {
+        // Update document status to saving
+        await Document.findOneAndUpdate(
+          { key },
+          { status: 'saving' }
+        );
+
+        console.log(`Document ${document.title} is being saved.`);
+
+        // Create temporary and backup paths
+        const tempPath = `${document.path}.tmp`;
+        const backupPath = `${document.path}.backup`;
+
+        // Fetch the document from the provided URL
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch document: ${response.statusText}`);
+        }
+
+        // Convert response to buffer
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        // Create backup of current file
+        if (fs.existsSync(document.path)) {
+          fs.copyFileSync(document.path, backupPath);
+        }
+
+        // Write new content to temporary file
+        fs.writeFileSync(tempPath, buffer);
+
+        // Atomic rename operation
+        fs.renameSync(tempPath, document.path);
+
+        // Update document metadata with atomic version increment
+        const updatedDoc = await Document.findOneAndUpdate(
+          { key },
+          { 
+            $inc: { version: 1 },
+            status: 'ready',
+            lastModified: new Date(),
+            activeUsers: []
+          },
+          { new: true }
+        );
+
+        // Clean up backup file
+        if (fs.existsSync(backupPath)) {
+          fs.unlinkSync(backupPath);
+        }
+
+        console.log(`Document saved successfully. New version: ${updatedDoc.version}`);
+        return res.json({ 
+          error: 0,
+          status: 'success',
+          version: updatedDoc.version
+        });
+
+      } catch (error) {
+        console.error('Error saving document:', error);
+
+        // Restore from backup if available
+        const backupPath = `${document.path}.backup`;
+        if (fs.existsSync(backupPath)) {
+          fs.renameSync(backupPath, document.path);
+        }
+
+        // Clean up temporary file
+        const tempPath = `${document.path}.tmp`;
+        if (fs.existsSync(tempPath)) {
+          fs.unlinkSync(tempPath);
+        }
+
+        // Reset document status
+        await Document.findOneAndUpdate(
+          { key },
+          { status: 'ready' }
+        );
+
+        return res.status(500).json({ 
+          error: 1,
+          message: 'Failed to save document'
+        });
+      }
 
     case 3: // Document ready for saving
       console.log(`Document ${document.title} is ready for saving.`);
@@ -94,22 +137,39 @@ const handleCallback = asyncHandler(async (req, res) => {
 
     case 4: // Document saving error
       console.error(`Error saving document ${document.title}.`);
+      await Document.findOneAndUpdate(
+        { key },
+        { status: 'ready' }
+      );
       break;
 
     case 6: // Document being edited, but user has gone away
       console.log(`Users have gone away from ${document.title}`);
+      await Document.findOneAndUpdate(
+        { key },
+        { 
+          status: 'ready',
+          activeUsers: []
+        }
+      );
       break;
 
     case 7: // Document being edited, but user has expired
       console.log(`User session expired for ${document.title}`);
+      await Document.findOneAndUpdate(
+        { key },
+        { 
+          status: 'ready',
+          activeUsers: []
+        }
+      );
       break;
 
     default:
       console.log(`Unknown status (${status}) for document ${document.title}.`);
   }
 
-  // Return success to OnlyOffice Document Server
-  res.json({ error: 0 });
+  return res.json({ error: 0 });
 });
 
 // @desc    Generate JWT for OnlyOffice integration
@@ -124,24 +184,8 @@ const getEditorConfig = asyncHandler(async (req, res) => {
   }
 
   // Check if user has access to the document
-  const hasAccess = 
-    document.owner._id.equals(req.session.user._id) || 
-    document.isPublic || 
-    document.shared.some(share => share.user.equals(req.session.user._id));
-
-  if (!hasAccess) {
+  if (!document.owner._id.equals(req.session.user._id)) {
     return res.status(403).json({ error: 'Access denied' });
-  }
-
-  // Determine if user has edit rights
-  let mode = 'view';
-  if (document.owner._id.equals(req.session.user._id)) {
-    mode = 'edit';
-  } else {
-    const sharedAccess = document.shared.find(share => share.user.equals(req.session.user._id));
-    if (sharedAccess && sharedAccess.access === 'edit') {
-      mode = 'edit';
-    }
   }
 
   // Get file extension without the leading dot
@@ -173,9 +217,7 @@ const getEditorConfig = asyncHandler(async (req, res) => {
     {
       document: {
         key: document.key,
-      },
-      permissions: {
-        edit: mode === 'edit',
+        version: document.version
       },
       user: {
         id: req.session.user._id.toString(),
@@ -183,7 +225,7 @@ const getEditorConfig = asyncHandler(async (req, res) => {
       },
     },
     process.env.JWT_SECRET || 'fallback_secret',
-    { expiresIn: '1d' }
+    { expiresIn: '1h' }
   );
 
   // Build the configuration for OnlyOffice Document Server
@@ -193,23 +235,24 @@ const getEditorConfig = asyncHandler(async (req, res) => {
       key: document.key,
       title: document.title,
       url: `${process.env.APP_URL || 'http://localhost:3000'}/api/documents/${document.key}/download`,
+      info: {
+        owner: document.owner.name,
+        uploaded: document.createdAt,
+        version: document.version,
+      },
       permissions: {
-        edit: mode === 'edit',
+        edit: true,
         download: true,
-        review: true,
-        comment: true,
+        review: false,
+        comment: false,
         modifyFilter: true,
         modifyContentControl: true,
         fillForms: true,
       },
-      info: {
-        owner: document.owner.name,
-        uploaded: document.createdAt,
-      },
     },
     documentType,
     editorConfig: {
-      mode,
+      mode: 'edit',
       callbackUrl: `${process.env.APP_URL || 'http://localhost:3000'}/api/callback`,
       user: {
         id: req.session.user._id.toString(),
@@ -223,7 +266,7 @@ const getEditorConfig = asyncHandler(async (req, res) => {
         zoom: 100,
         showReviewChanges: false,
         trackChanges: false,
-      }
+      },
     },
     token,
   };
