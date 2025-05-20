@@ -34,10 +34,6 @@ const documentSchema = mongoose.Schema(
       ref: 'User',
       required: true,
     },
-    version: {
-      type: Number,
-      default: 1,
-    },
     lastModified: {
       type: Date,
       default: Date.now,
@@ -46,17 +42,6 @@ const documentSchema = mongoose.Schema(
       type: String,
       enum: ['ready', 'editing', 'saving'],
       default: 'ready'
-    },
-    activeUsers: [{
-      type: String
-    }],
-    lockToken: {
-      type: String,
-      default: null
-    },
-    lockExpiresAt: {
-      type: Date,
-      default: null
     }
   },
   {

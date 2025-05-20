@@ -1,7 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import fs from 'fs';
 import jwt from 'jsonwebtoken';
-import path from 'path';
 import Document from '../models/documentModel.js';
 
 // @desc    OnlyOffice callback handler
@@ -9,7 +8,7 @@ import Document from '../models/documentModel.js';
 // @access  Public (with JWT verification)
 const handleCallback = asyncHandler(async (req, res) => {
   const { body } = req;
-  const { key, status, url, users, actions } = body;
+  const { key, status, url } = body;
 
   console.log('Received callback from OnlyOffice Document Server:', body);
 
@@ -20,44 +19,15 @@ const handleCallback = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: 1, message: 'Document not found' });
   }
 
-  // Handle different status updates from the document server
-  switch (status) {
-    case 1: // Document being edited
-      try {
-        await Document.findOneAndUpdate(
-          { key },
-          { 
-            status: 'editing',
-            activeUsers: users || [],
-            lastModified: new Date()
-          }
-        );
-        console.log(`Document ${document.title} is being edited.`);
-        if (users && users.length > 0) {
-          console.log('Active users:', users.join(', '));
+  try {
+    switch (status) {
+      case 2: // Document saving
+        if (!url) {
+          console.error('No URL provided for saving the document.');
+          return res.status(400).json({ error: 1, message: 'No URL provided for saving' });
         }
-      } catch (error) {
-        console.error('Error updating document status:', error);
-      }
-      break;
 
-    case 2: // Document saving
-      if (!url) {
-        return res.status(400).json({ error: 1, message: 'No URL provided for saving' });
-      }
-
-      try {
-        // Update document status to saving
-        await Document.findOneAndUpdate(
-          { key },
-          { status: 'saving' }
-        );
-
-        console.log(`Document ${document.title} is being saved.`);
-
-        // Create temporary and backup paths
-        const tempPath = `${document.path}.tmp`;
-        const backupPath = `${document.path}.backup`;
+        console.log(`Saving document ${document.title} from URL: ${url}`);
 
         // Fetch the document from the provided URL
         const response = await fetch(url);
@@ -66,110 +36,45 @@ const handleCallback = asyncHandler(async (req, res) => {
         }
 
         // Convert response to buffer
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        const buffer = await response.buffer();
 
-        // Create backup of current file
-        if (fs.existsSync(document.path)) {
-          fs.copyFileSync(document.path, backupPath);
-        }
+        // Write new content directly to file
+        fs.writeFileSync(document.path, buffer);
 
-        // Write new content to temporary file
-        fs.writeFileSync(tempPath, buffer);
+        console.log(`Document ${document.title} saved successfully.`);
 
-        // Atomic rename operation
-        fs.renameSync(tempPath, document.path);
-
-        // Update document metadata with atomic version increment
-        const updatedDoc = await Document.findOneAndUpdate(
+        // Update document metadata
+        await Document.findOneAndUpdate(
           { key },
-          { 
-            $inc: { version: 1 },
-            status: 'ready',
-            lastModified: new Date(),
-            activeUsers: []
-          },
-          { new: true }
+          { status: 'ready', lastModified: new Date() }
         );
 
-        // Clean up backup file
-        if (fs.existsSync(backupPath)) {
-          fs.unlinkSync(backupPath);
-        }
+        break;
 
-        console.log(`Document saved successfully. New version: ${updatedDoc.version}`);
-        return res.json({ 
-          error: 0,
-          status: 'success',
-          version: updatedDoc.version
-        });
-
-      } catch (error) {
-        console.error('Error saving document:', error);
-
-        // Restore from backup if available
-        const backupPath = `${document.path}.backup`;
-        if (fs.existsSync(backupPath)) {
-          fs.renameSync(backupPath, document.path);
-        }
-
-        // Clean up temporary file
-        const tempPath = `${document.path}.tmp`;
-        if (fs.existsSync(tempPath)) {
-          fs.unlinkSync(tempPath);
-        }
-
-        // Reset document status
+      case 4: // Document saving error
+        console.error(`Error saving document ${document.title}.`);
         await Document.findOneAndUpdate(
           { key },
           { status: 'ready' }
         );
+        break;
 
-        return res.status(500).json({ 
-          error: 1,
-          message: 'Failed to save document'
-        });
-      }
+      default:
+        console.log(`Callback received with status ${status} for document ${document.title}.`);
+    }
 
-    case 3: // Document ready for saving
-      console.log(`Document ${document.title} is ready for saving.`);
-      break;
+    return res.json({ error: 0 });
+  } catch (error) {
+    console.error(`Error handling callback for document ${document.title}:`, error);
 
-    case 4: // Document saving error
-      console.error(`Error saving document ${document.title}.`);
-      await Document.findOneAndUpdate(
-        { key },
-        { status: 'ready' }
-      );
-      break;
+    // Reset document status to ready in case of any error
+    await Document.findOneAndUpdate(
+      { key },
+      { status: 'ready' }
+    );
 
-    case 6: // Document being edited, but user has gone away
-      console.log(`Users have gone away from ${document.title}`);
-      await Document.findOneAndUpdate(
-        { key },
-        { 
-          status: 'ready',
-          activeUsers: []
-        }
-      );
-      break;
-
-    case 7: // Document being edited, but user has expired
-      console.log(`User session expired for ${document.title}`);
-      await Document.findOneAndUpdate(
-        { key },
-        { 
-          status: 'ready',
-          activeUsers: []
-        }
-      );
-      break;
-
-    default:
-      console.log(`Unknown status (${status}) for document ${document.title}.`);
+    return res.status(500).json({ error: 1, message: 'Failed to handle callback' });
   }
-
-  return res.json({ error: 0 });
 });
 
 // @desc    Generate JWT for OnlyOffice integration
@@ -216,8 +121,7 @@ const getEditorConfig = asyncHandler(async (req, res) => {
   const token = jwt.sign(
     {
       document: {
-        key: document.key,
-        version: document.version
+        key: document.key
       },
       user: {
         id: req.session.user._id.toString(),
@@ -237,8 +141,7 @@ const getEditorConfig = asyncHandler(async (req, res) => {
       url: `${process.env.APP_URL || 'http://localhost:3000'}/api/documents/${document.key}/download`,
       info: {
         owner: document.owner.name,
-        uploaded: document.createdAt,
-        version: document.version,
+        uploaded: document.createdAt
       },
       permissions: {
         edit: true,
