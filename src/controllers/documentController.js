@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
-import Document from '../models/documentModel.js';
+import db from '../db.js'; // Knex configuration
 import Docxtemplater from 'docxtemplater';
 import PptxGenJS from 'pptxgenjs';
 import ExcelJS from 'exceljs';
@@ -21,8 +21,10 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 // @route   GET /documents
 // @access  Private
 const getDocuments = asyncHandler(async (req, res) => {
-  const documents = await Document.find({ owner: req.session.user._id }).sort({ updatedAt: -1 });
-
+  const documents = await db('documents')
+    .where({ owner_id: req.session.user.id })
+    .orderBy('updated_at', 'desc');
+console.log('Documents:', documents);
   res.render('documents/index', {
     title: 'My Documents',
     documents,
@@ -46,59 +48,76 @@ const getUploadForm = asyncHandler(async (req, res) => {
 // @access  Private
 const uploadDocument = asyncHandler(async (req, res) => {
   const file = req.file;
-  
+
   if (!file) {
     res.status(400);
     throw new Error('Please upload a file');
   }
 
-  // Extract file extension and verify it's a supported type
   const fileExt = path.extname(file.originalname).toLowerCase().slice(1);
   const supportedTypes = ['docx', 'xlsx', 'pptx', 'txt', 'pdf'];
-  
+
   if (!supportedTypes.includes(fileExt)) {
     fs.unlinkSync(file.path);
     res.status(400);
     throw new Error('Unsupported file type. Please upload docx, xlsx, pptx, txt, or pdf files only.');
   }
 
-  // Generate a unique key for the document
   const key = uuidv4();
 
-  // Create a new document record
-  const document = await Document.create({
+  const [documentId] = await db('documents').insert({
     title: req.body.title || path.basename(file.originalname, path.extname(file.originalname)),
     filename: file.originalname,
-    fileType: fileExt,
+    file_type: fileExt,
     path: file.path,
     key,
     size: file.size,
-    owner: req.session.user._id,
+    owner_id: req.session.user.id,
   });
 
-  res.redirect('/documents');
+  if (documentId) {
+    res.redirect('/documents');
+  } else {
+    res.status(500);
+    throw new Error('Failed to upload document');
+  }
 });
 
 // @desc    View a document
 // @route   GET /documents/:id
 // @access  Private
 const viewDocument = asyncHandler(async (req, res) => {
-  const document = await Document.findById(req.params.id).populate('owner', 'name email');
-  
+  const document = await db('documents')
+    .where({ 'documents.id': req.params.id })
+    .join('users', 'documents.owner_id', 'users.id')
+    .select(
+      'documents.*',
+      'users.id as owner_id',
+      'users.name as owner_name',
+      'users.email as owner_email'
+    )
+    .first();
+
   if (!document) {
     res.status(404);
     throw new Error('Document not found');
   }
 
-  // Check if user owns the document
-  if (!document.owner._id.equals(req.session.user._id)) {
+  if (document.owner_id !== req.session.user.id) {
     res.status(403);
     throw new Error('Access denied');
   }
 
   res.render('documents/view', {
     title: document.title,
-    document,
+    document: {
+      ...document,
+      owner: {
+        id: document.owner_id,
+        name: document.owner_name,
+        email: document.owner_email,
+      },
+    },
     user: req.session.user,
     documentServerUrl: process.env.DOCUMENT_SERVER_URL || 'http://localhost:8000',
   });
@@ -108,25 +127,25 @@ const viewDocument = asyncHandler(async (req, res) => {
 // @route   DELETE /documents/:id
 // @access  Private
 const deleteDocument = asyncHandler(async (req, res) => {
-  const document = await Document.findById(req.params.id);
-  
+  const document = await db('documents')
+    .where({ id: req.params.id })
+    .first();
+
   if (!document) {
     res.status(404);
     throw new Error('Document not found');
   }
 
-  if (!document.owner.equals(req.session.user._id)) {
+  if (document.owner_id !== req.session.user.id) {
     res.status(403);
     throw new Error('Access denied');
   }
 
-  // Delete the file
   if (fs.existsSync(document.path)) {
     fs.unlinkSync(document.path);
   }
 
-  // Delete the document from the database
-  await document.remove();
+  await db('documents').where({ id: req.params.id }).del();
 
   res.redirect('/documents');
 });
@@ -137,14 +156,14 @@ const deleteDocument = asyncHandler(async (req, res) => {
 const createDocument = asyncHandler(async (req, res) => {
   const { type } = req.params;
   const { title } = req.query;
-  
+
   if (!title) {
     res.status(400);
     throw new Error('Document title is required');
   }
 
   const validTypes = ['docx', 'xlsx', 'pptx'];
-  
+
   if (!validTypes.includes(type)) {
     res.status(400);
     throw new Error('Invalid document type. Supported types are docx, xlsx, and pptx.');
@@ -154,7 +173,6 @@ const createDocument = asyncHandler(async (req, res) => {
   const key = uuidv4();
   const filePath = path.join(UPLOAD_DIR, `${key}.${type}`);
 
-  // Create the file based on type
   if (type === 'docx') {
     const templatePath = path.join(__dirname, '../templates/template.docx');
     const templateContent = fs.readFileSync(templatePath, 'binary');
@@ -175,31 +193,33 @@ const createDocument = asyncHandler(async (req, res) => {
     await pptx.writeFile(filePath);
   }
 
-  const document = await Document.create({
+  const [documentId] = await db('documents').insert({
     title,
     filename,
-    fileType: type,
+    file_type: type,
     path: filePath,
     key,
     size: fs.statSync(filePath).size,
-    owner: req.session.user._id,
+    owner_id: req.session.user.id,
   });
 
-  res.redirect(`/documents/${document._id}`);
+  res.redirect(`/documents/${documentId}`);
 });
 
 // @desc    Download a document
 // @route   GET /documents/downloads/:id
 // @access  Private
 const downloadDocument = asyncHandler(async (req, res) => {
-  const document = await Document.findById(req.params.id);
+  const document = await db('documents')
+    .where({ id: req.params.id })
+    .first();
 
   if (!document) {
     res.status(404);
     throw new Error('Document not found');
   }
 
-  if (!document.owner.equals(req.session.user._id)) {
+  if (document.owner_id !== req.session.user.id) {
     res.status(403);
     throw new Error('Access denied');
   }

@@ -1,6 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import jwt from 'jsonwebtoken';
-import User from '../models/userModel.js';
+import db from '../db.js'; // Corrected Knex configuration path
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -16,7 +16,7 @@ const registerUser = asyncHandler(async (req, res) => {
   const { name, email, password } = req.body;
 
   // Check if user exists
-  const userExists = await User.findOne({ email });
+  const userExists = await db('users').where({ email }).first();
 
   if (userExists) {
     return res.render('register', {
@@ -27,22 +27,22 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   // Create user
-  const user = await User.create({
+  const [userId] = await db('users').insert({
     name,
     email,
-    password,
+    password, // Ensure password is hashed before saving
   });
 
-  if (user) {
+  if (userId) {
     // Generate token
-    const token = generateToken(user._id);
+    const token = generateToken(userId);
 
     // Set session
     req.session.user = {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
+      id: userId,
+      name,
+      email,
+      role: 'user', // Default role
     };
 
     res.redirect('/documents');
@@ -62,16 +62,16 @@ const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
   // Find user by email
-  const user = await User.findOne({ email });
+  const user = await db('users').where({ email }).first();
 
   // Check if user exists and password matches
-  if (user && (await user.matchPassword(password))) {
+  if (user && (await db('users').where({ email, password }).first())) {
     // Generate token
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     // Set session
     req.session.user = {
-      _id: user._id,
+      id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,

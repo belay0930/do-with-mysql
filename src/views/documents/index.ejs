@@ -21,23 +21,23 @@
       <ul class="divide-y divide-gray-200">
         <% documents.forEach(document => { %>
           <li class="hover:bg-gray-50 transition-colors duration-150">
-            <a href="/documents/<%= document._id %>" class="block">
+            <a href="/documents/<%= document.id %>" class="block">
               <div class="px-4 py-4 sm:px-6">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center">
-                    <% if (document.fileType === 'docx') { %>
+                    <% if (document.file_type === 'docx') { %>
                       <div class="flex-shrink-0 h-10 w-10 rounded bg-blue-50 flex items-center justify-center text-blue-500">
                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       </div>
-                    <% } else if (document.fileType === 'xlsx') { %>
+                    <% } else if (document.file_type === 'xlsx') { %>
                       <div class="flex-shrink-0 h-10 w-10 rounded bg-green-50 flex items-center justify-center text-green-500">
                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                         </svg>
                       </div>
-                    <% } else if (document.fileType === 'pptx') { %>
+                    <% } else if (document.file_type === 'pptx') { %>
                       <div class="flex-shrink-0 h-10 w-10 rounded bg-red-50 flex items-center justify-center text-red-500">
                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
@@ -56,7 +56,7 @@
                   <div class="ml-2 flex-shrink-0 flex">
                     <span class="text-xs text-gray-500">
                       <% 
-                        const date = new Date(document.updatedAt);
+                        const date = new Date(document.updated_at);
                         const formattedDate = date.toLocaleDateString('en-US', { 
                           year: 'numeric', 
                           month: 'short', 
