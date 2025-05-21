@@ -1,7 +1,9 @@
 import asyncHandler from 'express-async-handler';
 import fs from 'fs';
+import fetch from 'node-fetch';
 import jwt from 'jsonwebtoken';
-import Document from '../models/documentModel.js';
+import db from '../db.js'; // Corrected Knex configuration path
+import path from 'path'; // Add this import if not already present
 
 // @desc    OnlyOffice callback handler
 // @route   POST /api/callback
@@ -13,7 +15,7 @@ const handleCallback = asyncHandler(async (req, res) => {
   console.log('Received callback from OnlyOffice Document Server:', body);
 
   // Find the document by key
-  const document = await Document.findOne({ key });
+  const document = await db('documents').where({ key }).first();
 
   if (!document) {
     return res.status(404).json({ error: 1, message: 'Document not found' });
@@ -44,19 +46,15 @@ const handleCallback = asyncHandler(async (req, res) => {
         console.log(`Document ${document.title} saved successfully.`);
 
         // Update document metadata
-        await Document.findOneAndUpdate(
-          { key },
-          { status: 'ready', lastModified: new Date() }
-        );
+        await db('documents')
+          .where({ key })
+          .update({ status: 'ready', lastModified: new Date() });
 
         break;
 
       case 4: // Document saving error
         console.error(`Error saving document ${document.title}.`);
-        await Document.findOneAndUpdate(
-          { key },
-          { status: 'ready' }
-        );
+        await db('documents').where({ key }).update({ status: 'ready' });
         break;
 
       default:
@@ -68,10 +66,7 @@ const handleCallback = asyncHandler(async (req, res) => {
     console.error(`Error handling callback for document ${document.title}:`, error);
 
     // Reset document status to ready in case of any error
-    await Document.findOneAndUpdate(
-      { key },
-      { status: 'ready' }
-    );
+    await db('documents').where({ key }).update({ status: 'ready' });
 
     return res.status(500).json({ error: 1, message: 'Failed to handle callback' });
   }
@@ -82,19 +77,23 @@ const handleCallback = asyncHandler(async (req, res) => {
 // @access  Private
 const getEditorConfig = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const document = await Document.findById(id).populate('owner', 'name email');
-  
+  const document = await db('documents')
+    .where({ id })
+    .join('users', 'documents.owner_id', 'users.id')
+    .select('documents.*', 'users.name as ownerName', 'users.email as ownerEmail')
+    .first();
+
   if (!document) {
     return res.status(404).json({ error: 'Document not found' });
   }
 
   // Check if user has access to the document
-  if (!document.owner._id.equals(req.session.user._id)) {
+  if (document.owner_id !== req.session.user.id) {
     return res.status(403).json({ error: 'Access denied' });
   }
 
   // Get file extension without the leading dot
-  const fileExt = document.fileType;
+  const fileExt = document.file_type;
 
   // Determine the document type based on extension
   let documentType;
@@ -121,10 +120,10 @@ const getEditorConfig = asyncHandler(async (req, res) => {
   const token = jwt.sign(
     {
       document: {
-        key: document.key
+        key: document.key,
       },
       user: {
-        id: req.session.user._id.toString(),
+        id: req.session.user.id.toString(),
         name: req.session.user.name,
       },
     },
@@ -138,10 +137,10 @@ const getEditorConfig = asyncHandler(async (req, res) => {
       fileType: fileExt,
       key: document.key,
       title: document.title,
-      url: `${process.env.APP_URL || 'http://localhost:3000'}/api/documents/${document.key}/download`,
+      url: `${process.env.APP_URL || 'http://localhost:3000'}/uploads/${path.basename(document.path)}`,
       info: {
-        owner: document.owner.name,
-        uploaded: document.createdAt
+        owner: document.ownerName,
+        uploaded: document.created_at,
       },
       permissions: {
         edit: true,
@@ -158,7 +157,7 @@ const getEditorConfig = asyncHandler(async (req, res) => {
       mode: 'edit',
       callbackUrl: `${process.env.APP_URL || 'http://localhost:3000'}/api/callback`,
       user: {
-        id: req.session.user._id.toString(),
+        id: req.session.user.id.toString(),
         name: req.session.user.name,
       },
       customization: {
@@ -182,8 +181,8 @@ const getEditorConfig = asyncHandler(async (req, res) => {
 // @access  Public (with token)
 const downloadDocument = asyncHandler(async (req, res) => {
   const { key } = req.params;
-  
-  const document = await Document.findOne({ key });
+
+  const document = await db('documents').where({ key }).first();
   if (!document) {
     return res.status(404).json({ error: 'Document not found' });
   }

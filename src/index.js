@@ -6,20 +6,16 @@ import morgan from 'morgan';
 import session from 'express-session';
 import MongoStore from 'connect-mongo';
 import multer from 'multer';
+import connectSessionKnex from 'connect-session-knex';
+import db from './db.js'; // Import Knex instance
 
 // Import routes
 import authRoutes from './routes/authRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
 import apiRoutes from './routes/apiRoutes.js';
 
-// Import database connection
-import connectDB from './config/db.js';
-
 // Environment variables configuration
 dotenv.config();
-
-// Connect to MongoDB
-connectDB();
 
 // Initialize Express app
 const app = express();
@@ -45,10 +41,6 @@ app.use(
     secret: process.env.JWT_SECRET || 'fallback_secret',
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({
-      mongoUrl: process.env.MONGODB_URI || 'mongodb://localhost:27017/onlyoffice',
-      ttl: 14 * 24 * 60 * 60, // 14 days
-    }),
     cookie: {
       maxAge: 14 * 24 * 60 * 60 * 1000, // 14 days
     },
